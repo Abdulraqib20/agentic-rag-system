@@ -13,3 +13,5 @@ pysqlite3-binary
 langchain-text-splitters==0.3.6
 langchain-community==0.3.18
 torch==2.2.0  # Specific compatible version
+langchain-huggingface==0.1.2
+numpy

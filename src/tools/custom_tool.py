@@ -14,7 +14,8 @@ from qdrant_client.http import models
 from langchain_experimental.text_splitter import SemanticChunker
 # from langchain_text_splitters import SemanticChunker
 from sentence_transformers import SentenceTransformer
-from langchain_community.embeddings import HuggingFaceEmbeddings
+# from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 import requests
 
 from config.appconfig import FIRECRAWL_API_KEY
