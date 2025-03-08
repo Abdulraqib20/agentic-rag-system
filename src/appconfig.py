@@ -1,72 +1,69 @@
-import os
+import streamlit as st
+
 import sys
+import os
 import logging
 from pathlib import Path
-from dotenv import load_dotenv
 
-try:
-    root_dir = Path(__file__).parent.parent  # Running from a .py file
-except NameError:
-    root_dir = Path(os.getcwd()).parent  # Running from a Jupyter notebook
-
-# Ensure logs directory exists
-log_dir = root_dir / 'logs'
-log_dir.mkdir(exist_ok=True)
-
-# Configure logging
+# Configure logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_dir / 'config.log'),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-env_path = root_dir / '.env'
-if not env_path.exists():
-    logger.error(f".env file not found at {env_path}. Please ensure it exists.")
-    raise FileNotFoundError(f".env file not found at {env_path}")
+# Secret Sources Priority: 1. Streamlit Secrets 2. Environment Variables
+try:
+    config_source = st.secrets
+    logger.info("Using Streamlit secrets for configuration")
+except ImportError:
+    config_source = os.environ
+    logger.info("Using environment variables for configuration")
 
-load_dotenv(env_path)
+# Required configuration keys (match secrets.toml structure)
+REQUIRED_KEYS = {
+    "groq": ["api_key"],
+    "firecrawl": ["api_key"],
+    "serper": ["api_key"],
+    "qdrant": ["api_key", "location"],
+    "model": ["name"]
+}
 
-# Required environment variables
-REQUIRED_VARS = [
-    'GROQ_API_KEY',
-    'FIRECRAWL_API_KEY',
-    'MODEL',
-    'QDRANT_API_KEY',
-    'QDRANT_LOCATION'
-]
+# Build config from secrets
+config = {}
+try:
+    # Groq Configuration
+    config.update({
+        "GROQ_API_KEY": config_source["groq"]["api_key"],
+        "MODEL": config_source["model"]["name"]
+    })
+    
+    # Firecrawl Configuration
+    config["FIRECRAWL_API_KEY"] = config_source["firecrawl"]["api_key"]
+    
+    # Serper Configuration
+    config["SERPER_API_KEY"] = config_source["serper"]["api_key"]
+    
+    # Qdrant Configuration
+    config.update({
+        "QDRANT_API_KEY": config_source["qdrant"]["api_key"],
+        "QDRANT_LOCATION": config_source["qdrant"]["location"]
+    })
 
-# Load and validate environment variables
-config = {var: os.getenv(var) for var in REQUIRED_VARS}
-missing_vars = [var for var, value in config.items() if not value]
+except KeyError as e:
+    missing = str(e).strip("'")
+    logger.error(f"Missing required configuration key: {missing}")
+    raise RuntimeError(f"Configuration error: Missing {missing}") from e
 
-if missing_vars:
-    error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
-    logger.error(error_msg)
-    raise ValueError(error_msg)
-
-# Export variables explicitly
-GROQ_API_KEY = config['GROQ_API_KEY']
-FIRECRAWL_API_KEY = config['FIRECRAWL_API_KEY']
-MODEL = "groq/llama-3.3-70b-versatile"
-QDRANT_API_KEY = config['QDRANT_API_KEY']
-QDRANT_LOCATION = config['QDRANT_LOCATION']
+# Export variables
+globals().update(config)
+__all__ = list(config.keys())
 
 logger.info("Configuration loaded successfully")
-logger.info("Loaded configuration values:")
-for key, value in config.items():
-    masked_value = f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}" if value and len(value) > 4 else value
-    logger.info(f"{key}: {masked_value}")
-
-__all__ = [
-    'GROQ_API_KEY',
-    'FIRECRAWL_API_KEY',
-    'MODEL',
-    'QDRANT_API_KEY',
-    'QDRANT_LOCATION'
-]
+logger.debug("Loaded configuration:\n" + "\n".join(
+    f"{k}: {v[:3]}...{v[-3:] if len(v) > 6 else '***'}" 
+    for k, v in config.items()
+))
