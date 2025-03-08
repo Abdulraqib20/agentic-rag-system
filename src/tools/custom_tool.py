@@ -57,7 +57,7 @@ class DocumentSearchTool(BaseTool):
         chunker = SemanticChunker(
             embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
             breakpoint_threshold_type="percentile",
-            breakpoint_threshold=65,
+            breakpoint_threshold_amount=65,
         )
         
         return chunker.chunk(raw_text)
