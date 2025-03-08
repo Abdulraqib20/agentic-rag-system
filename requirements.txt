@@ -9,3 +9,4 @@ markitdown
 qdrant_client==1.13.2
 chonkie==0.5.0
 chromadb==0.5.23
+pysqlite3-binary
