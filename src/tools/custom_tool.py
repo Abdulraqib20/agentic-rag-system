@@ -19,6 +19,90 @@ import requests
 
 from config.appconfig import FIRECRAWL_API_KEY
 
+# # ---------------------------
+# # DocumentSearchTool Section
+# # ---------------------------
+
+# class DocumentSearchToolInput(BaseModel):
+#     """Input schema for DocumentSearchTool."""
+#     query: str = Field(..., description="Query to search the document.")
+
+# class DocumentSearchTool(BaseTool):
+#     name: str = "DocumentSearchTool"
+#     description: str = "Search the document for the given query."
+#     args_schema: Type[BaseModel] = DocumentSearchToolInput
+    
+#     model_config = ConfigDict(extra="allow")
+#     def __init__(self, file_path: str):
+#         """Initialize the searcher with a PDF file path and set up the Qdrant collection."""
+#         super().__init__()
+#         self.file_path = file_path
+#         self.client = QdrantClient(":memory:")  # For small experiments
+#         self._process_document()
+
+#     def _extract_text(self) -> str:
+#         """Extract raw text from PDF using MarkItDown."""
+#         md = MarkItDown()
+#         result = md.convert(self.file_path)
+#         return result.text_content
+
+#     # def _create_chunks(self, raw_text: str) -> list:
+#     #     """Create semantic chunks from raw text."""
+#     #     # chunker = SemanticChunker(
+#     #     #     embedding_model="minishlab/potion-base-8M",
+#     #     #     threshold=0.5,
+#     #     #     chunk_size=512,
+#     #     #     min_sentences=1
+#     #     # )
+        
+#     #     chunker = SemanticChunker(
+#     #         embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
+#     #         breakpoint_threshold_type="percentile",
+#     #         breakpoint_threshold_amount=65,
+#     #     )
+        
+#     #     return chunker.split_text(raw_text)
+
+#     def _create_chunks(self, raw_text: str) -> list:
+#         """Create semantic chunks from raw text."""
+#         embeddings = HuggingFaceEmbeddings(
+#             model_name="sentence-transformers/all-MiniLM-L6-v2"
+#         )
+        
+#         chunker = SemanticChunker(
+#             embeddings=embeddings,
+#             breakpoint_threshold_type="percentile",
+#             breakpoint_threshold_amount=65
+#         )
+#         return chunker.split_text(raw_text)
+    
+#     def _process_document(self):
+#         """Process the document and add chunks to Qdrant collection."""
+#         raw_text = self._extract_text()
+#         chunks = self._create_chunks(raw_text)
+        
+#         docs = [chunk.text for chunk in chunks]
+#         metadata = [{"source": os.path.basename(self.file_path)} for _ in range(len(chunks))]
+#         ids = list(range(len(chunks)))
+
+#         self.client.add(
+#             collection_name="demo_collection",
+#             documents=docs,
+#             metadata=metadata,
+#             ids=ids
+#         )
+
+#     def _run(self, query: str) -> list:
+#         """Search the document with a query string."""
+#         relevant_chunks = self.client.query(
+#             collection_name="demo_collection",
+#             query_text=query
+#         )
+#         docs = [chunk.document for chunk in relevant_chunks]
+#         separator = "\n___\n"
+#         return separator.join(docs)
+
+
 # ---------------------------
 # DocumentSearchTool Section
 # ---------------------------
@@ -33,11 +117,14 @@ class DocumentSearchTool(BaseTool):
     args_schema: Type[BaseModel] = DocumentSearchToolInput
     
     model_config = ConfigDict(extra="allow")
+    
     def __init__(self, file_path: str):
         """Initialize the searcher with a PDF file path and set up the Qdrant collection."""
         super().__init__()
         self.file_path = file_path
-        self.client = QdrantClient(":memory:")  # For small experiments
+        self.client = QdrantClient(":memory:")
+        self.encoder = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+        self.collection_name = "document_chunks"
         self._process_document()
 
     def _extract_text(self) -> str:
@@ -45,23 +132,6 @@ class DocumentSearchTool(BaseTool):
         md = MarkItDown()
         result = md.convert(self.file_path)
         return result.text_content
-
-    # def _create_chunks(self, raw_text: str) -> list:
-    #     """Create semantic chunks from raw text."""
-    #     # chunker = SemanticChunker(
-    #     #     embedding_model="minishlab/potion-base-8M",
-    #     #     threshold=0.5,
-    #     #     chunk_size=512,
-    #     #     min_sentences=1
-    #     # )
-        
-    #     chunker = SemanticChunker(
-    #         embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
-    #         breakpoint_threshold_type="percentile",
-    #         breakpoint_threshold_amount=65,
-    #     )
-        
-    #     return chunker.split_text(raw_text)
 
     def _create_chunks(self, raw_text: str) -> list:
         """Create semantic chunks from raw text."""
@@ -78,29 +148,60 @@ class DocumentSearchTool(BaseTool):
     
     def _process_document(self):
         """Process the document and add chunks to Qdrant collection."""
+        # Create collection first
+        self.client.recreate_collection(
+            collection_name=self.collection_name,
+            vectors_config=models.VectorParams(
+                size=384,  # All-MiniLM-L6-v2 embedding size
+                distance=models.Distance.COSINE
+            )
+        )
+        
         raw_text = self._extract_text()
         chunks = self._create_chunks(raw_text)
         
-        docs = [chunk.text for chunk in chunks]
-        metadata = [{"source": os.path.basename(self.file_path)} for _ in range(len(chunks))]
-        ids = list(range(len(chunks)))
-
-        self.client.add(
-            collection_name="demo_collection",
-            documents=docs,
-            metadata=metadata,
-            ids=ids
+        # Generate embeddings
+        embeddings = self.encoder.encode(chunks)
+        
+        # Prepare points for upload
+        points = [
+            models.PointStruct(
+                id=idx,
+                vector=embedding.tolist(),
+                payload={
+                    "text": chunk,
+                    "source": os.path.basename(self.file_path)
+                }
+            )
+            for idx, (chunk, embedding) in enumerate(zip(chunks, embeddings))
+        ]
+        
+        # Upload to Qdrant
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points
         )
 
-    def _run(self, query: str) -> list:
+    def _run(self, query: str) -> str:
         """Search the document with a query string."""
-        relevant_chunks = self.client.query(
-            collection_name="demo_collection",
-            query_text=query
-        )
-        docs = [chunk.document for chunk in relevant_chunks]
-        separator = "\n___\n"
-        return separator.join(docs)
+        try:
+            # Encode query
+            query_embedding = self.encoder.encode(query).tolist()
+            
+            # Search Qdrant
+            results = self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_embedding,
+                limit=3
+            )
+            
+            if not results:
+                return "No relevant information found."
+            
+            return "\n___\n".join([result.payload["text"] for result in results])
+            
+        except Exception as e:
+            return f"Search error: {str(e)}"
 
 
 # ---------------------------------
