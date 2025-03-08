@@ -1,10 +1,11 @@
-streamlit
+streamlit==1.42.2
 crewai==0.102.0
 crewai-tools==0.36.0
-langchain_groq
-langchain
-pydantic
+langchain_groq== 0.2.4
+langchain== 0.3.19
+pydantic==2.10.6
 sentence_transformers
 markitdown
-qdrant_client
-chonkie
+qdrant_client==1.13.2
+chonkie==0.5.0
+chromadb==0.5.23
