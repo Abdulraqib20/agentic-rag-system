@@ -17,7 +17,15 @@ from langchain.callbacks.manager import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 
 from src.tools.custom_tool import DocumentSearchTool, FireCrawlWebSearchTool
-from config.appconfig import GROQ_API_KEY, FIRECRAWL_API_KEY, SERPER_API_KEY
+# Replace the import line with
+from config.appconfig import (
+    GROQ_API_KEY,
+    FIRECRAWL_API_KEY,
+    SERPER_API_KEY,
+    QDRANT_API_KEY,
+    QDRANT_LOCATION,
+    MODEL
+)
 
 # Add project root to Python path
 sys.path.append(str(Path(__file__).parent.parent.resolve()))  # More reliable path resolution
@@ -34,7 +42,6 @@ PDF_UPLOAD_DIR = Path("pdf_uploads")
 # ===========================
 def get_groq_llm():
     """Get LLM configuration with proper Groq setup."""
-    
     try:
         callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
     except (ImportError, AttributeError):
@@ -42,13 +49,14 @@ def get_groq_llm():
     
     return ChatGroq(
         temperature=0.3,
-        api_key=st.secrets.groq.api_key,
-        model="groq/llama-3.3-70b-versatile",
+        api_key=GROQ_API_KEY,
+        model=MODEL,
         max_tokens=4096,
         max_retries=3,
         timeout=30,
         metadata={"rate_limit": "10 rpm"},  # Track usage,
-        **({"callback_manager": callback_manager} if callback_manager else {}),
+        callbacks=[StreamingStdOutCallbackHandler()],
+        # **({"callback_manager": callback_manager} if callback_manager else {}),
         streaming=True,
         verbose=True
     )
