@@ -29,7 +29,8 @@ REQUIRED_KEYS = {
     "firecrawl": ["api_key"],
     "serper": ["api_key"],
     "qdrant": ["api_key", "location"],
-    "model": ["name"]
+    "model": ["name"],
+    "embeddings": ["model"]
 }
 
 # Build config from secrets
@@ -52,6 +53,9 @@ try:
         "QDRANT_API_KEY": config_source["qdrant"]["api_key"],
         "QDRANT_LOCATION": config_source["qdrant"]["location"]
     })
+    
+    # Add to your config class
+    EMBEDDING_MODEL = config_source["embeddings"]["model"]
 
 except KeyError as e:
     missing = str(e).strip("'")

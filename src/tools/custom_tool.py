@@ -8,9 +8,11 @@ from crewai.tools import BaseTool
 from typing import Type, List, Dict, Any
 from pydantic import BaseModel, Field, ConfigDict
 from markitdown import MarkItDown
-from chonkie import SemanticChunker
+# from chonkie import SemanticChunker
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
+from langchain_experimental.text_splitter import SemanticChunker
+# from langchain_text_splitters import SemanticChunker
 from sentence_transformers import SentenceTransformer
 import requests
 
@@ -45,12 +47,19 @@ class DocumentSearchTool(BaseTool):
 
     def _create_chunks(self, raw_text: str) -> list:
         """Create semantic chunks from raw text."""
+        # chunker = SemanticChunker(
+        #     embedding_model="minishlab/potion-base-8M",
+        #     threshold=0.5,
+        #     chunk_size=512,
+        #     min_sentences=1
+        # )
+        
         chunker = SemanticChunker(
-            embedding_model="minishlab/potion-base-8M",
-            threshold=0.5,
-            chunk_size=512,
-            min_sentences=1
+            embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
+            breakpoint_threshold_ty65="percentile",
+            breakpoint_threshold=65,
         )
+        
         return chunker.chunk(raw_text)
 
     def _process_document(self):
