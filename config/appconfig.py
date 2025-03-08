@@ -1,98 +1,69 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
-import logging
+import streamlit as st
+
 import sys
+import os
+import logging
+from pathlib import Path
 
-try:
-    # This works when running from a .py file
-    root_dir = Path(__file__).parent.parent
-except NameError:
-    # This works when running from a Jupyter notebook
-    root_dir = Path(os.getcwd()).parent
-
-log_dir = root_dir / 'logs'
-log_dir.mkdir(exist_ok=True)
-
-# Configure logging
+# Configure logging first
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_dir / 'config.log'), 
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# Secret Sources Priority: 1. Streamlit Secrets 2. Environment Variables
+try:
+    config_source = st.secrets
+    logger.info("Using Streamlit secrets for configuration")
+except ImportError:
+    config_source = os.environ
+    logger.info("Using environment variables for configuration")
 
-file_handler = logging.FileHandler(log_dir / 'config.log')
-file_handler.setFormatter(formatter)
+# Required configuration keys (match secrets.toml structure)
+REQUIRED_KEYS = {
+    "groq": ["api_key"],
+    "firecrawl": ["api_key"],
+    "serper": ["api_key"],
+    "qdrant": ["api_key", "location"],
+    "model": ["name"]
+}
 
-stream_handler = logging.StreamHandler()
-stream_handler.setFormatter(formatter)
-
-logger.addHandler(file_handler)
-logger.addHandler(stream_handler)
-
-
-sys.path.append(str(root_dir))
-
-env_path = root_dir / '.env'
-if not env_path.exists():
-    logger.error(f"Environment file not found at {env_path}. Please ensure it exists.")
-    raise FileNotFoundError(f".env file not found at {env_path}")
-
-load_dotenv(env_path)
-
-# Required environment variables
-REQUIRED_VARS = [
-    'GROQ_API_KEY', 
-    'FIRECRAWL_API_KEY',
-    'MODEL',
-    'QDRANT_API_KEY',
-    'QDRANT_LOCATION',
-    'SERPER_API_KEY'
-]
-
-# Load and validate environment variables
+# Build config from secrets
 config = {}
-missing_vars = []
+try:
+    # Groq Configuration
+    config.update({
+        "GROQ_API_KEY": config_source["groq"]["api_key"],
+        "MODEL": config_source["model"]["name"]
+    })
+    
+    # Firecrawl Configuration
+    config["FIRECRAWL_API_KEY"] = config_source["firecrawl"]["api_key"]
+    
+    # Serper Configuration
+    config["SERPER_API_KEY"] = config_source["serper"]["api_key"]
+    
+    # Qdrant Configuration
+    config.update({
+        "QDRANT_API_KEY": config_source["qdrant"]["api_key"],
+        "QDRANT_LOCATION": config_source["qdrant"]["location"]
+    })
 
-for var in REQUIRED_VARS:
-    value = os.getenv(var)
-    if not value:
-        missing_vars.append(var)
-    config[var] = value
+except KeyError as e:
+    missing = str(e).strip("'")
+    logger.error(f"Missing required configuration key: {missing}")
+    raise RuntimeError(f"Configuration error: Missing {missing}") from e
 
-if missing_vars:
-    error_msg = f"Missing required environment variables: {', '.join(missing_vars)}"
-    logger.error(error_msg)
-    raise ValueError(error_msg)
-
-# Export variables explicitly
-GROQ_API_KEY = config['GROQ_API_KEY']
-FIRECRAWL_API_KEY = config['FIRECRAWL_API_KEY']
-# MODEL = "groq/llama-3.3-70b-versatile"
-MODEL = config['MODEL']
-QDRANT_API_KEY = config['QDRANT_API_KEY']
-QDRANT_LOCATION = config['QDRANT_LOCATION']
-SERPER_API_KEY = config['SERPER_API_KEY']
+# Export variables
+globals().update(config)
+__all__ = list(config.keys())
 
 logger.info("Configuration loaded successfully")
-logger.info("Loaded configuration values:")
-for key, value in config.items():
-    # Mask sensitive data for logging
-    display_value = value if len(value) <= 4 else f"{value[:2]}{'*' * (len(value) - 4)}{value[-2:]}"
-    logger.info(f"{key}: {display_value}")
-
-__all__ = [
-    'GROQ_API_KEY',
-    'FIRECRAWL_API_KEY',
-    'MODEL',
-    'QDRANT_API_KEY',
-    'QDRANT_LOCATION',
-    'SERPER_API_KEY'
-]
+logger.debug("Loaded configuration:\n" + "\n".join(
+    f"{k}: {v[:3]}...{v[-3:] if len(v) > 6 else '***'}" 
+    for k, v in config.items()
+))
