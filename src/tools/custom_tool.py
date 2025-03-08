@@ -14,6 +14,7 @@ from qdrant_client.http import models
 from langchain_experimental.text_splitter import SemanticChunker
 # from langchain_text_splitters import SemanticChunker
 from sentence_transformers import SentenceTransformer
+from langchain_community.embeddings import HuggingFaceEmbeddings
 import requests
 
 from config.appconfig import FIRECRAWL_API_KEY
@@ -45,23 +46,36 @@ class DocumentSearchTool(BaseTool):
         result = md.convert(self.file_path)
         return result.text_content
 
+    # def _create_chunks(self, raw_text: str) -> list:
+    #     """Create semantic chunks from raw text."""
+    #     # chunker = SemanticChunker(
+    #     #     embedding_model="minishlab/potion-base-8M",
+    #     #     threshold=0.5,
+    #     #     chunk_size=512,
+    #     #     min_sentences=1
+    #     # )
+        
+    #     chunker = SemanticChunker(
+    #         embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
+    #         breakpoint_threshold_type="percentile",
+    #         breakpoint_threshold_amount=65,
+    #     )
+        
+    #     return chunker.split_text(raw_text)
+
     def _create_chunks(self, raw_text: str) -> list:
         """Create semantic chunks from raw text."""
-        # chunker = SemanticChunker(
-        #     embedding_model="minishlab/potion-base-8M",
-        #     threshold=0.5,
-        #     chunk_size=512,
-        #     min_sentences=1
-        # )
-        
-        chunker = SemanticChunker(
-            embeddings=SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2"),
-            breakpoint_threshold_type="percentile",
-            breakpoint_threshold_amount=65,
+        embeddings = HuggingFaceEmbeddings(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
         
+        chunker = SemanticChunker(
+            embeddings=embeddings,
+            breakpoint_threshold_type="percentile",
+            breakpoint_threshold_amount=65
+        )
         return chunker.split_text(raw_text)
-
+    
     def _process_document(self):
         """Process the document and add chunks to Qdrant collection."""
         raw_text = self._extract_text()

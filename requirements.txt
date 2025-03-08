@@ -11,3 +11,4 @@ chonkie==0.5.0
 chromadb==0.5.23
 pysqlite3-binary
 langchain-text-splitters==0.3.6
+langchain-community==0.3.18
