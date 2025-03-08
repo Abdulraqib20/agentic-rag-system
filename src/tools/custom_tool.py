@@ -60,7 +60,7 @@ class DocumentSearchTool(BaseTool):
             breakpoint_threshold_amount=65,
         )
         
-        return chunker.chunk(raw_text)
+        return chunker.split_text(raw_text)
 
     def _process_document(self):
         """Process the document and add chunks to Qdrant collection."""
