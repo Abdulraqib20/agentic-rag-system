@@ -1,0 +1,9 @@
+streamlit
+crewai
+langchain_groq
+langchain
+pydantic
+sentence_transformers
+markitdown
+qdrant_client
+chonkie
