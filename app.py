@@ -42,7 +42,7 @@ def get_groq_llm():
     
     return ChatGroq(
         temperature=0.3,
-        api_key=GROQ_API_KEY,
+        api_key=st.secrets.groq.api_key,
         model="groq/llama-3.3-70b-versatile",
         max_tokens=4096,
         max_retries=3,
